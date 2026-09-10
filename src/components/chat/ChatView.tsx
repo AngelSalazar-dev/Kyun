@@ -2,11 +2,14 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { ChatMessage } from "@/types";
+import type { EmotionState } from "@/lib/emotions";
 
 interface ChatViewProps {
   messages: ChatMessage[];
   isLoading: boolean;
   streamingText: string;
+  userEmotion: EmotionState | null;
+  kyunMood: { current: string; energy: number } | null;
   onSend: (message: string) => void;
   onToggleSidebar: () => void;
 }
@@ -15,6 +18,8 @@ export default function ChatView({
   messages,
   isLoading,
   streamingText,
+  userEmotion,
+  kyunMood,
   onSend,
   onToggleSidebar,
 }: ChatViewProps) {
@@ -49,7 +54,6 @@ export default function ChatView({
     }
   };
 
-  // Auto-resize textarea
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.style.height = "auto";
@@ -58,6 +62,17 @@ export default function ChatView({
   }, [input]);
 
   const isEmpty = messages.length === 0;
+
+  const moodEmojis: Record<string, string> = {
+    neutral: "😐",
+    happy: "😊",
+    empathetic: "💙",
+    calm: "😌",
+    helpful: "🤝",
+    excited: "🔥",
+    curious: "🤔",
+    confident: "💪",
+  };
 
   return (
     <div className="flex flex-col h-screen bg-[#1e1f20]">
@@ -78,15 +93,13 @@ export default function ChatView({
         {isEmpty ? (
           /* Welcome screen */
           <div className="flex flex-col items-center justify-center h-full px-4">
-            <h1 className="text-3xl md:text-4xl font-light text-white mb-8">
+            <h1 className="text-3xl md:text-4xl font-light text-white mb-2">
               {greeting}, Ángel
             </h1>
+            <p className="text-gray-500 mb-8">¿En qué puedo ayudarte hoy?</p>
 
             {/* Input box - centered */}
-            <form
-              onSubmit={handleSubmit}
-              className="w-full max-w-[640px]"
-            >
+            <form onSubmit={handleSubmit} className="w-full max-w-[640px]">
               <div className="flex items-end bg-[#2b2c2e] rounded-3xl px-4 py-3 border border-gray-600/50 focus-within:border-gray-500 transition-colors">
                 <textarea
                   ref={inputRef}
@@ -112,17 +125,32 @@ export default function ChatView({
         ) : (
           /* Chat messages */
           <div className="max-w-[768px] mx-auto px-4 py-6 space-y-6">
+            {/* KYUN mood indicator */}
+            {kyunMood && (
+              <div className="flex justify-center">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 text-xs text-gray-500">
+                  <span>{moodEmojis[kyunMood.current] || "😐"}</span>
+                  <span>Kyun está {kyunMood.current}</span>
+                  <span>·</span>
+                  <div className="w-16 h-1 bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-purple-500 rounded-full transition-all"
+                      style={{ width: `${kyunMood.energy * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {messages.map((msg, i) => (
               <div key={i} className="animate-fade-in">
                 {msg.role === "user" ? (
-                  /* User message - right aligned */
                   <div className="flex justify-end">
                     <div className="bg-[#2b2c2e] text-white rounded-3xl rounded-br-lg px-5 py-3 max-w-[80%]">
                       <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                     </div>
                   </div>
                 ) : (
-                  /* Assistant message - left aligned */
                   <div className="flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-1">
                       K
@@ -171,10 +199,7 @@ export default function ChatView({
       {/* Bottom input - when chatting */}
       {!isEmpty && (
         <div className="border-t border-gray-700/50 bg-[#1e1f20] px-4 py-3">
-          <form
-            onSubmit={handleSubmit}
-            className="max-w-[768px] mx-auto"
-          >
+          <form onSubmit={handleSubmit} className="max-w-[768px] mx-auto">
             <div className="flex items-end bg-[#2b2c2e] rounded-3xl px-4 py-3 border border-gray-600/50 focus-within:border-gray-500 transition-colors">
               <textarea
                 ref={inputRef}

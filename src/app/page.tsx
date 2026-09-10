@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import ChatView from "@/components/chat/ChatView";
 import Sidebar from "@/components/sidebar/Sidebar";
 import type { ChatMessage } from "@/types";
+import type { EmotionState } from "@/lib/emotions";
 
 interface ChatSession {
   id: string;
@@ -18,8 +19,9 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userEmotion, setUserEmotion] = useState<EmotionState | null>(null);
+  const [kyunMood, setKyunMood] = useState<{ current: string; energy: number } | null>(null);
 
-  // Cargar lista de chats
   const loadChats = useCallback(async () => {
     try {
       const res = await fetch("/api/history");
@@ -38,7 +40,6 @@ export default function Home() {
     loadChats();
   }, [loadChats]);
 
-  // Cargar mensajes de un chat
   const loadMessages = useCallback(async (sessionId: string) => {
     try {
       const res = await fetch(`/api/history?sessionId=${sessionId}`);
@@ -46,17 +47,19 @@ export default function Home() {
       setMessages(data);
       setActiveChatId(sessionId);
       setSidebarOpen(false);
+      setUserEmotion(null);
+      setKyunMood(null);
     } catch {}
   }, []);
 
-  // Nuevo chat
   const handleNewChat = useCallback(() => {
     setActiveChatId(null);
     setMessages([]);
     setSidebarOpen(false);
+    setUserEmotion(null);
+    setKyunMood(null);
   }, []);
 
-  // Enviar mensaje
   const handleSend = useCallback(
     async (content: string) => {
       if (isLoading) return;
@@ -66,7 +69,6 @@ export default function Home() {
       setIsLoading(true);
       setStreamingText("");
 
-      // Generar ID de sesión si es nuevo chat
       const sid = activeChatId || crypto.randomUUID();
 
       try {
@@ -98,6 +100,14 @@ export default function Home() {
               try {
                 const data = JSON.parse(line.slice(6));
 
+                // Handle emotion data
+                if (data.emotion) {
+                  setUserEmotion(data.emotion);
+                }
+                if (data.kyunMood) {
+                  setKyunMood(data.kyunMood);
+                }
+
                 if (data.error) {
                   setMessages((prev) => [
                     ...prev,
@@ -111,7 +121,6 @@ export default function Home() {
                     ...prev,
                     { role: "assistant", content: accumulated },
                   ]);
-                  // Actualizar lista de chats
                   if (!activeChatId) {
                     setActiveChatId(sid);
                   }
@@ -140,7 +149,6 @@ export default function Home() {
     [isLoading, activeChatId, loadChats]
   );
 
-  // Eliminar chat
   const handleDeleteChat = useCallback(
     async (id: string) => {
       await fetch("/api/chat", {
@@ -174,6 +182,8 @@ export default function Home() {
           messages={messages}
           isLoading={isLoading}
           streamingText={streamingText}
+          userEmotion={userEmotion}
+          kyunMood={kyunMood}
           onSend={handleSend}
           onToggleSidebar={() => setSidebarOpen(true)}
         />

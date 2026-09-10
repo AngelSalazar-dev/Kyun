@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { streamChat, initProviders } from "@/lib/providers";
 import { buildContext } from "@/lib/context";
 import { getPersonality } from "@/lib/personalities";
+import { detectUserEmotion } from "@/lib/emotions";
+import { updateKyunMood, getEmotionPrefix, resetKyunMood } from "@/lib/kyun-mood";
 import pool from "@/lib/db";
 
 initProviders();
@@ -17,6 +19,15 @@ export async function POST(req: NextRequest) {
   const conn = await pool.getConnection();
 
   try {
+    // Detect user emotion
+    const userEmotion = detectUserEmotion(message);
+
+    // Update KYUN's mood
+    const kyunMood = updateKyunMood(userEmotion);
+
+    // Get emotion prefix
+    const emotionPrefix = getEmotionPrefix(userEmotion);
+
     // Buscar o crear sesión
     const [existing] = await conn.query("SELECT id FROM sessions WHERE id = ?", [sid]);
     if ((existing as any[]).length === 0) {
@@ -36,8 +47,14 @@ export async function POST(req: NextRequest) {
     const dbMessages = rows as { role: string; content: string }[];
 
     const personality = getPersonality(personalityId || "default");
+
+    // Build context with emotion awareness
+    const emotionContext = userEmotion.emotion !== "neutral"
+      ? `[El usuario parece ${userEmotion.emotion} ${userEmotion.emoji}. ${emotionPrefix}]`
+      : "";
+
     const history = [
-      { role: "system" as const, content: personality.systemPrompt },
+      { role: "system" as const, content: personality.systemPrompt + (emotionContext ? `\n${emotionContext}` : "") },
       ...dbMessages.map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
@@ -59,6 +76,16 @@ export async function POST(req: NextRequest) {
         let fullResponse = "";
 
         try {
+          // Send emotion data first
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({
+                emotion: userEmotion,
+                kyunMood: { current: kyunMood.current, energy: kyunMood.energy },
+              })}\n\n`
+            )
+          );
+
           for await (const { chunk, provider } of streamChat(context)) {
             fullResponse += chunk;
             controller.enqueue(
@@ -111,6 +138,7 @@ export async function DELETE(req: NextRequest) {
   if (sessionId) {
     await pool.query("DELETE FROM messages WHERE session_id = ?", [sessionId]);
     await pool.query("DELETE FROM sessions WHERE id = ?", [sessionId]);
+    resetKyunMood();
   }
   return Response.json({ ok: true });
 }
