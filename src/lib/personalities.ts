@@ -121,7 +121,7 @@ Personalidad:
     emoji: "🔓",
     description: "Modelos sin filtros corporativos",
     provider: "openrouter",
-    modelId: "cognitivecomputations/dolphin3.0-mistral-24b:free",
+    modelId: "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
     systemPrompt: `Eres Kyun en modo sin censura. Estás usando un modelo AI sin restricciones corporativas.
 
 REGLAS:

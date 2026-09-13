@@ -80,8 +80,7 @@ export interface ModelOverride {
 }
 
 const UNCENSORED_MODELS = [
-  "cognitivecomputations/dolphin3.0-mistral-24b:free",
-  "nousresearch/hermes-3-llama-3.1-405b:free",
+  "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
 ];
 
 export async function* streamChat(
