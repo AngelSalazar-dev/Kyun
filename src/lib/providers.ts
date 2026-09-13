@@ -79,47 +79,33 @@ export interface ModelOverride {
   modelId?: string;
 }
 
-const UNCENSORED_MODELS = [
-  "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
-];
-
 export async function* streamChat(
   messages: ApiMessage[],
   override?: ModelOverride
 ): AsyncGenerator<{ chunk: string; provider: ProviderName }> {
-  // If a specific model is requested (uncensored mode), use it directly
-  // and DO NOT fall back to filtered models
+  // If a specific model is requested, use it directly
   if (override?.modelId && openrouterClient && !isInCooldown("openrouter")) {
-    // Try primary uncensored model
-    const modelsToTry = [override.modelId, ...UNCENSORED_MODELS.filter(m => m !== override.modelId)];
-
-    for (const modelId of modelsToTry) {
-      if (isInCooldown("openrouter")) break;
-      try {
-        const response = await openrouterClient.chat.completions.create({
-          model: modelId,
-          messages,
-          temperature: 0.7,
-          max_tokens: 2048,
-          stream: true,
-        } as any);
-        recordSuccess("openrouter");
-        const stream = response as unknown as AsyncIterable<any>;
-        for await (const chunk of stream) {
-          const content = chunk.choices?.[0]?.delta?.content;
-          if (content) yield { chunk: content, provider: "openrouter" };
-        }
-        return;
-      } catch {
-        recordFailure("openrouter");
+    try {
+      const response = await openrouterClient.chat.completions.create({
+        model: override.modelId,
+        messages,
+        temperature: 0.7,
+        max_tokens: 2048,
+        stream: true,
+      } as any);
+      recordSuccess("openrouter");
+      const stream = response as unknown as AsyncIterable<any>;
+      for await (const chunk of stream) {
+        const content = chunk.choices?.[0]?.delta?.content;
+        if (content) yield { chunk: content, provider: "openrouter" };
       }
+      return;
+    } catch {
+      recordFailure("openrouter");
     }
-
-    // All uncensored models failed — do NOT fall through to filtered models
-    throw new Error("Los modelos sin censura están temporalmente indisponibles. Intenta de nuevo en unos segundos.");
   }
 
-  // Default path: Groq → OpenRouter fallback (filtered models)
+  // Default path: Groq → OpenRouter fallback
   if (groqClient && !isInCooldown("groq")) {
     try {
       const stream = await groqClient.chat.completions.create({
