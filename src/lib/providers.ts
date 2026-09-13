@@ -89,52 +89,38 @@ export async function* streamChat(
   override?: ModelOverride
 ): AsyncGenerator<{ chunk: string; provider: ProviderName }> {
   // If a specific model is requested (uncensored mode), use it directly
+  // and DO NOT fall back to filtered models
   if (override?.modelId && openrouterClient && !isInCooldown("openrouter")) {
-    try {
-      const response = await openrouterClient.chat.completions.create({
-        model: override.modelId,
-        messages,
-        temperature: 0.7,
-        max_tokens: 2048,
-        stream: true,
-      } as any);
-      recordSuccess("openrouter");
-      const stream = response as unknown as AsyncIterable<any>;
-      for await (const chunk of stream) {
-        const content = chunk.choices?.[0]?.delta?.content;
-        if (content) yield { chunk: content, provider: "openrouter" };
-      }
-      return;
-    } catch {
-      recordFailure("openrouter");
-      // Try fallback uncensored models
-      for (const fallbackModel of UNCENSORED_MODELS) {
-        if (fallbackModel === override.modelId) continue;
-        if (!isInCooldown("openrouter") && openrouterClient) {
-          try {
-            const response = await openrouterClient.chat.completions.create({
-              model: fallbackModel,
-              messages,
-              temperature: 0.7,
-              max_tokens: 2048,
-              stream: true,
-            } as any);
-            recordSuccess("openrouter");
-            const stream = response as unknown as AsyncIterable<any>;
-            for await (const chunk of stream) {
-              const content = chunk.choices?.[0]?.delta?.content;
-              if (content) yield { chunk: content, provider: "openrouter" };
-            }
-            return;
-          } catch {
-            recordFailure("openrouter");
-          }
+    // Try primary uncensored model
+    const modelsToTry = [override.modelId, ...UNCENSORED_MODELS.filter(m => m !== override.modelId)];
+
+    for (const modelId of modelsToTry) {
+      if (isInCooldown("openrouter")) break;
+      try {
+        const response = await openrouterClient.chat.completions.create({
+          model: modelId,
+          messages,
+          temperature: 0.7,
+          max_tokens: 2048,
+          stream: true,
+        } as any);
+        recordSuccess("openrouter");
+        const stream = response as unknown as AsyncIterable<any>;
+        for await (const chunk of stream) {
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (content) yield { chunk: content, provider: "openrouter" };
         }
+        return;
+      } catch {
+        recordFailure("openrouter");
       }
     }
+
+    // All uncensored models failed — do NOT fall through to filtered models
+    throw new Error("Los modelos sin censura están temporalmente indisponibles. Intenta de nuevo en unos segundos.");
   }
 
-  // Default path: Groq → OpenRouter fallback
+  // Default path: Groq → OpenRouter fallback (filtered models)
   if (groqClient && !isInCooldown("groq")) {
     try {
       const stream = await groqClient.chat.completions.create({
