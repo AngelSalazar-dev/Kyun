@@ -1,6 +1,8 @@
 export interface ChatMessage {
+  id: string;
   role: "system" | "user" | "assistant";
   content: string;
+  timestamp: number;
 }
 
 export type ProviderName = "groq" | "openrouter";

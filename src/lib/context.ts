@@ -1,19 +1,22 @@
-import type { ChatMessage } from "@/types";
-
 const TOKENS_PER_CHAR = 0.25;
 const RESERVE_TOKENS = 2_000;
 const DEFAULT_LIMIT = 32_000;
 const CONTEXT_WINDOW = DEFAULT_LIMIT - RESERVE_TOKENS;
 
+interface SimpleMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
 function estimateTokens(text: string): number {
   return Math.ceil(text.length * TOKENS_PER_CHAR);
 }
 
-function messageTokens(msg: ChatMessage): number {
+function messageTokens(msg: SimpleMessage): number {
   return estimateTokens(msg.content) + 4;
 }
 
-export function buildContext(history: ChatMessage[]): ChatMessage[] {
+export function buildContext(history: SimpleMessage[]): SimpleMessage[] {
   const systemMsg = history.find((m) => m.role === "system");
   const nonSystem = history.filter((m) => m.role !== "system");
 
@@ -28,9 +31,9 @@ export function buildContext(history: ChatMessage[]): ChatMessage[] {
     return systemMsg ? [systemMsg, ...nonSystem] : nonSystem;
   }
 
-  const context: ChatMessage[] = [];
+  const context: SimpleMessage[] = [];
   let usedTokens = systemTokens;
-  const recentMessages: ChatMessage[] = [];
+  const recentMessages: SimpleMessage[] = [];
 
   for (let i = nonSystem.length - 1; i >= 0; i--) {
     const msgTokens = messageTokens(nonSystem[i]);
@@ -59,7 +62,7 @@ export function buildContext(history: ChatMessage[]): ChatMessage[] {
   return context;
 }
 
-function summarizeMessages(messages: ChatMessage[]): string {
+function summarizeMessages(messages: SimpleMessage[]): string {
   const topics: string[] = [];
   for (const msg of messages) {
     if (msg.role === "user") {
@@ -70,7 +73,7 @@ function summarizeMessages(messages: ChatMessage[]): string {
   return `El usuario preguntó sobre: ${topics.join("; ")}`;
 }
 
-export function getContextStats(history: ChatMessage[]) {
+export function getContextStats(history: SimpleMessage[]) {
   const nonSystem = history.filter((m) => m.role !== "system");
   const totalTokens = nonSystem.reduce((sum, m) => sum + messageTokens(m), 0);
   const context = buildContext(history);

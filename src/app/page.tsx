@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import ChatView from "@/components/chat/ChatView";
 import Sidebar from "@/components/sidebar/Sidebar";
 import type { ChatMessage } from "@/types";
@@ -21,6 +21,8 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userEmotion, setUserEmotion] = useState<EmotionState | null>(null);
   const [kyunMood, setKyunMood] = useState<{ current: string; energy: number } | null>(null);
+  const [personalityId, setPersonalityId] = useState("default");
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const loadChats = useCallback(async () => {
     try {
@@ -44,7 +46,14 @@ export default function Home() {
     try {
       const res = await fetch(`/api/history?sessionId=${sessionId}`);
       const data = await res.json();
-      setMessages(data);
+      setMessages(
+        data.map((m: any) => ({
+          id: crypto.randomUUID(),
+          role: m.role,
+          content: m.content,
+          timestamp: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+        }))
+      );
       setActiveChatId(sessionId);
       setSidebarOpen(false);
       setUserEmotion(null);
@@ -60,16 +69,30 @@ export default function Home() {
     setKyunMood(null);
   }, []);
 
+  const handleStop = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setIsLoading(false);
+    setStreamingText("");
+  }, []);
+
   const handleSend = useCallback(
     async (content: string) => {
       if (isLoading) return;
 
-      const userMsg: ChatMessage = { role: "user", content };
+      const userMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content,
+        timestamp: Date.now(),
+      };
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
       setStreamingText("");
 
       const sid = activeChatId || crypto.randomUUID();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
       try {
         const res = await fetch("/api/chat", {
@@ -77,9 +100,10 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: content,
-            personalityId: "default",
+            personalityId,
             sessionId: sid,
           }),
+          signal: controller.signal,
         });
 
         const reader = res.body?.getReader();
@@ -100,7 +124,6 @@ export default function Home() {
               try {
                 const data = JSON.parse(line.slice(6));
 
-                // Handle emotion data
                 if (data.emotion) {
                   setUserEmotion(data.emotion);
                 }
@@ -111,7 +134,12 @@ export default function Home() {
                 if (data.error) {
                   setMessages((prev) => [
                     ...prev,
-                    { role: "assistant", content: `Error: ${data.error}` },
+                    {
+                      id: crypto.randomUUID(),
+                      role: "assistant",
+                      content: `Error: ${data.error}`,
+                      timestamp: Date.now(),
+                    },
                   ]);
                   break;
                 }
@@ -119,7 +147,12 @@ export default function Home() {
                 if (data.done) {
                   setMessages((prev) => [
                     ...prev,
-                    { role: "assistant", content: accumulated },
+                    {
+                      id: crypto.randomUUID(),
+                      role: "assistant",
+                      content: accumulated,
+                      timestamp: Date.now(),
+                    },
                   ]);
                   if (!activeChatId) {
                     setActiveChatId(sid);
@@ -137,17 +170,35 @@ export default function Home() {
           }
         }
       } catch (err: any) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: `Error: ${err.message}` },
-        ]);
+        if (err.name !== "AbortError") {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: `Error: ${err.message}`,
+              timestamp: Date.now(),
+            },
+          ]);
+        }
       } finally {
         setIsLoading(false);
         setStreamingText("");
+        abortControllerRef.current = null;
       }
     },
-    [isLoading, activeChatId, loadChats]
+    [isLoading, activeChatId, personalityId, loadChats]
   );
+
+  const handleRegenerate = useCallback(async () => {
+    if (isLoading || messages.length < 2) return;
+
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+    if (!lastUserMsg) return;
+
+    setMessages((prev) => prev.filter((m) => m.id !== messages[messages.length - 1]?.id));
+    await handleSend(lastUserMsg.content);
+  }, [isLoading, messages, handleSend]);
 
   const handleDeleteChat = useCallback(
     async (id: string) => {
@@ -171,9 +222,11 @@ export default function Home() {
         chats={chats}
         activeChatId={activeChatId}
         isOpen={sidebarOpen}
+        personalityId={personalityId}
         onNewChat={handleNewChat}
         onSelectChat={loadMessages}
         onDeleteChat={handleDeleteChat}
+        onPersonalityChange={setPersonalityId}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
       />
 
@@ -184,8 +237,12 @@ export default function Home() {
           streamingText={streamingText}
           userEmotion={userEmotion}
           kyunMood={kyunMood}
+          personalityId={personalityId}
           onSend={handleSend}
+          onStop={handleStop}
+          onRegenerate={handleRegenerate}
           onToggleSidebar={() => setSidebarOpen(true)}
+          onPersonalityChange={setPersonalityId}
         />
       </main>
     </div>

@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+@import "highlight.js/styles/github-dark.css";
+
 * {
   box-sizing: border-box;
   padding: 0;
@@ -17,7 +19,7 @@ body {
 body {
   background: #1e1f20;
   color: #e3e3e3;
-  font-family: "Google Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 /* Custom scrollbar */
@@ -60,4 +62,170 @@ body {
 
 .animate-fade-in {
   animation: fade-in 0.3s ease-out;
+}
+
+/* Markdown content styles */
+.markdown-content {
+  line-height: 1.7;
+}
+
+.markdown-content p {
+  margin-bottom: 0.75em;
+}
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.markdown-content ul {
+  list-style-type: disc;
+}
+
+.markdown-content ol {
+  list-style-type: decimal;
+}
+
+.markdown-content li {
+  margin-bottom: 0.25em;
+}
+
+.markdown-content strong {
+  font-weight: 600;
+  color: #f3f4f6;
+}
+
+.markdown-content em {
+  font-style: italic;
+  color: #d1d5db;
+}
+
+.markdown-content a {
+  color: #818cf8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-content a:hover {
+  color: #a5b4fc;
+}
+
+.markdown-content blockquote {
+  border-left: 3px solid #4b5563;
+  padding-left: 1em;
+  margin: 0.75em 0;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.markdown-content code:not(pre code) {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-size: 0.875em;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  color: #e879f9;
+}
+
+.markdown-content pre {
+  margin: 0.75em 0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.markdown-content pre code {
+  display: block;
+  padding: 1em;
+  overflow-x: auto;
+  font-size: 0.8125em;
+  line-height: 1.6;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  background: #0d1117;
+}
+
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75em 0;
+  font-size: 0.875em;
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid #374151;
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+
+.markdown-content th {
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 600;
+  color: #f3f4f6;
+}
+
+.markdown-content td {
+  color: #d1d5db;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+  font-weight: 600;
+  color: #f3f4f6;
+  margin: 1em 0 0.5em;
+}
+
+.markdown-content h1 { font-size: 1.25em; }
+.markdown-content h2 { font-size: 1.125em; }
+.markdown-content h3 { font-size: 1em; }
+
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid #374151;
+  margin: 1em 0;
+}
+
+/* Code block container with copy button */
+.code-block-wrapper {
+  position: relative;
+  margin: 0.75em 0;
+}
+
+.code-block-wrapper pre {
+  margin: 0;
+  border-radius: 12px;
+}
+
+.code-block-wrapper .copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: #9ca3af;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.code-block-wrapper:hover .copy-btn {
+  opacity: 1;
+}
+
+.code-block-wrapper .copy-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.code-block-wrapper .copy-btn.copied {
+  color: #34d399;
 }

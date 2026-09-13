@@ -1,6 +1,11 @@
 import Groq from "groq-sdk";
 import OpenAI from "openai";
-import type { ChatMessage, ProviderName } from "@/types";
+import type { ProviderName } from "@/types";
+
+interface ApiMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
 
 const GROQ_MODEL = "openai/gpt-oss-120b";
 const OR_MODELS = [
@@ -70,7 +75,7 @@ function recordSuccess(name: ProviderName) {
 }
 
 export async function* streamChat(
-  messages: ChatMessage[]
+  messages: ApiMessage[]
 ): AsyncGenerator<{ chunk: string; provider: ProviderName }> {
   if (groqClient && !isInCooldown("groq")) {
     try {

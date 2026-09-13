@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
 import type { ChatMessage } from "@/types";
 import type { EmotionState } from "@/lib/emotions";
 
@@ -10,9 +13,77 @@ interface ChatViewProps {
   streamingText: string;
   userEmotion: EmotionState | null;
   kyunMood: { current: string; energy: number } | null;
+  personalityId: string;
   onSend: (message: string) => void;
+  onStop?: () => void;
+  onRegenerate?: () => void;
   onToggleSidebar: () => void;
+  onPersonalityChange?: (id: string) => void;
 }
+
+function formatTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className={`p-1.5 rounded-md transition-colors ${copied ? "text-green-400" : "text-gray-500 hover:text-gray-300 hover:bg-white/10"}`}
+      title="Copiar"
+    >
+      {copied ? (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M20 6L9 17l-5-5" />
+        </svg>
+      ) : (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+function CodeBlock({ children, className, ...props }: any) {
+  const [copied, setCopied] = useState(false);
+  const code = String(children).replace(/\n$/, "");
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="code-block-wrapper">
+      <button
+        onClick={handleCopy}
+        className={`copy-btn ${copied ? "copied" : ""}`}
+      >
+        {copied ? "Copiado" : "Copiar"}
+      </button>
+      <pre>
+        <code className={className} {...props}>
+          {children}
+        </code>
+      </pre>
+    </div>
+  );
+}
+
+const markdownComponents = {
+  code: CodeBlock,
+};
 
 export default function ChatView({
   messages,
@@ -20,8 +91,12 @@ export default function ChatView({
   streamingText,
   userEmotion,
   kyunMood,
+  personalityId,
   onSend,
+  onStop,
+  onRegenerate,
   onToggleSidebar,
+  onPersonalityChange,
 }: ChatViewProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -74,6 +149,19 @@ export default function ChatView({
     confident: "💪",
   };
 
+  const emotionLabels: Record<string, string> = {
+    happy: "contento",
+    sad: "triste",
+    angry: "molesto",
+    frustrated: "frustrado",
+    anxious: "ansioso",
+    excited: "emocionado",
+    grateful: "agradecido",
+    curious: "con curiosidad",
+    tired: "cansado",
+    overwhelmed: "abrumado",
+  };
+
   return (
     <div className="flex flex-col h-screen bg-[#1e1f20]">
       {/* Top bar - mobile */}
@@ -94,7 +182,7 @@ export default function ChatView({
           /* Welcome screen */
           <div className="flex flex-col items-center justify-center h-full px-4">
             <h1 className="text-3xl md:text-4xl font-light text-white mb-2">
-              {greeting}, Ángel
+              {greeting}
             </h1>
             <p className="text-gray-500 mb-8">¿En qué puedo ayudarte hoy?</p>
 
@@ -134,20 +222,39 @@ export default function ChatView({
                   <span>·</span>
                   <div className="w-16 h-1 bg-gray-700 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-purple-500 rounded-full transition-all"
-                      style={{ width: `${kyunMood.energy * 100}%` }}
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${kyunMood.energy * 100}%`,
+                        backgroundColor: kyunMood.energy > 0.6 ? "#34d399" : kyunMood.energy > 0.3 ? "#fbbf24" : "#f87171",
+                      }}
                     />
                   </div>
                 </div>
               </div>
             )}
 
-            {messages.map((msg, i) => (
-              <div key={i} className="animate-fade-in">
+            {/* User emotion indicator */}
+            {userEmotion && userEmotion.emotion !== "neutral" && (
+              <div className="flex justify-center">
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 text-xs text-gray-500">
+                  <span>{userEmotion.emoji}</span>
+                  <span>Parece que estás {emotionLabels[userEmotion.emotion] || userEmotion.emotion}</span>
+                </div>
+              </div>
+            )}
+
+            {messages.map((msg) => (
+              <div key={msg.id} className="animate-fade-in group">
                 {msg.role === "user" ? (
                   <div className="flex justify-end">
-                    <div className="bg-[#2b2c2e] text-white rounded-3xl rounded-br-lg px-5 py-3 max-w-[80%]">
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <div className="flex items-end gap-2">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                        <CopyButton text={msg.content} />
+                      </div>
+                      <div className="bg-[#2b2c2e] text-white rounded-3xl rounded-br-lg px-5 py-3 max-w-[80%]">
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        <p className="text-[10px] text-gray-600 mt-1 text-right">{formatTime(msg.timestamp)}</p>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -155,8 +262,34 @@ export default function ChatView({
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold shrink-0 mt-1">
                       K
                     </div>
-                    <div className="bg-[#2b2c2e] text-white rounded-3xl rounded-bl-lg px-5 py-3 max-w-[85%]">
-                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="bg-[#2b2c2e] text-white rounded-3xl rounded-bl-lg px-5 py-3">
+                        <div className="text-sm markdown-content">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            rehypePlugins={[rehypeHighlight]}
+                            components={markdownComponents}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        </div>
+                        <p className="text-[10px] text-gray-600 mt-1">{formatTime(msg.timestamp)}</p>
+                      </div>
+                      <div className="flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <CopyButton text={msg.content} />
+                        {onRegenerate && (
+                          <button
+                            onClick={onRegenerate}
+                            className="p-1.5 rounded-md text-gray-500 hover:text-gray-300 hover:bg-white/10 transition-colors"
+                            title="Regenerar"
+                          >
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M1 4v6h6M23 20v-6h-6" />
+                              <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -170,7 +303,15 @@ export default function ChatView({
                   K
                 </div>
                 <div className="bg-[#2b2c2e] text-white rounded-3xl rounded-bl-lg px-5 py-3 max-w-[85%]">
-                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{streamingText}</p>
+                  <div className="text-sm markdown-content">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeHighlight]}
+                      components={markdownComponents}
+                    >
+                      {streamingText}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               </div>
             )}
@@ -210,22 +351,28 @@ export default function ChatView({
                 rows={1}
                 className="flex-1 bg-transparent text-white text-base resize-none focus:outline-none placeholder:text-gray-500 max-h-[200px]"
               />
-              <button
-                type="submit"
-                disabled={!input.trim() || isLoading}
-                className="ml-2 p-2 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0"
-              >
-                {isLoading ? (
-                  <svg className="w-5 h-5 text-white animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              {isLoading && onStop ? (
+                <button
+                  type="button"
+                  onClick={onStop}
+                  className="ml-2 p-2 rounded-full bg-red-500/20 hover:bg-red-500/30 transition-colors shrink-0"
+                  title="Detener generación"
+                >
+                  <svg className="w-5 h-5 text-red-400" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
                   </svg>
-                ) : (
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!input.trim() || isLoading}
+                  className="ml-2 p-2 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0"
+                >
                   <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
                   </svg>
-                )}
-              </button>
+                </button>
+              )}
             </div>
           </form>
         </div>
