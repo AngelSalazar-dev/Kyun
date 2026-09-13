@@ -81,6 +81,78 @@ const EMOTION_KEYWORDS: Record<Emotion, string[]> = {
   helpful: [],
 };
 
+// Detect if the user wants casual conversation (not technical)
+export function isConversationalIntent(text: string): boolean {
+  const lower = text.toLowerCase().trim();
+
+  // Greetings
+  const greetings = [
+    "hola", "hello", "hey", "buenos días", "buenas tardes", "buenas noches",
+    "qué tal", "cómo estás", "cómo vas", "qué onda", "qué pex",
+    "un gusto", "mucho gusto", "encantado",
+  ];
+
+  // Personal questions about KYUN
+  const personalQuestions = [
+    "quién eres", "qué eres", "cómo te llamas", "cuántos años tienes",
+    "tienes nombre", "quién te creó", "cuándo naciste",
+    "tienes sentimientos", "eres real", "tienes emociones",
+    "cuéntame de ti", "háblame de ti", "conócete",
+  ];
+
+  // Social/conversational intent
+  const socialIntent = [
+    "quiero hablar", "hablemos", "charlemos", "conversa",
+    "soy tu creador", "soy tu amigo", "seamos amigos",
+    "me siento solo", "estoy triste", "necesito hablar",
+    "gracias", "te quiero", "eres genial", "eres mi favorito",
+    "cuéntame algo", "diviérteme", "aburrío",
+  ];
+
+  // Check all patterns
+  for (const pattern of [...greetings, ...personalQuestions, ...socialIntent]) {
+    if (lower.includes(pattern)) {
+      return true;
+    }
+  }
+
+  // Short messages that are likely conversational (under 15 chars, no code-like content)
+  if (lower.length < 15 && !lower.includes("{") && !lower.includes("(") && !lower.includes("=")) {
+    return true;
+  }
+
+  return false;
+}
+
+// Detect if the user wants technical help (code, debugging, etc.)
+export function isTechnicalIntent(text: string): boolean {
+  const lower = text.toLowerCase();
+
+  const technicalKeywords = [
+    "código", "code", "función", "function", "clase", "class",
+    "error", "bug", "debug", "compilar", "compila",
+    "api", "endpoint", "servidor", "server", "base de datos", "database",
+    "html", "css", "javascript", "python", "java", "react", "node",
+    "git", "docker", "linux", "terminal", "comando",
+    "instalar", "installa", "configurar", "configura",
+    "roadmap", "tutorial", "ejemplo", "ejercicio",
+    "explica", "enseña", "cómo se hace", "cómo hacer",
+  ];
+
+  for (const keyword of technicalKeywords) {
+    if (lower.includes(keyword)) {
+      return true;
+    }
+  }
+
+  // Check for code-like patterns
+  if (/[{}\[\]();]/.test(text) || /[=><]+/.test(text)) {
+    return true;
+  }
+
+  return false;
+}
+
 // Analyze text and detect emotion
 export function detectUserEmotion(text: string): EmotionState {
   const lower = text.toLowerCase();
@@ -123,6 +195,12 @@ export function detectUserEmotion(text: string): EmotionState {
   if (text === text.toUpperCase() && text.length > 3) {
     scores.angry += 1;
     scores.frustrated += 0.5;
+  }
+
+  // Social intent detection adds to neutral/happy
+  if (isConversationalIntent(text)) {
+    scores.neutral += 0.5;
+    scores.happy += 0.3;
   }
 
   // Find dominant emotion
