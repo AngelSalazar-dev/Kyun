@@ -184,7 +184,17 @@ export default function ChatView({
             <h1 className="text-3xl md:text-4xl font-light text-white mb-2">
               {greeting}
             </h1>
-            <p className="text-gray-500 mb-8">¿En qué puedo ayudarte hoy?</p>
+            <p className="text-gray-500 mb-4">¿En qué puedo ayudarte hoy?</p>
+
+            {personalityId === "uncensored" && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs mb-6">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0110 0v4" />
+                </svg>
+                <span>Modo sin censura — Dolphin AI</span>
+              </div>
+            )}
 
             {/* Input box - centered */}
             <form onSubmit={handleSubmit} className="w-full max-w-[640px]">

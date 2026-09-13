@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
             )
           );
 
-          for await (const { chunk, provider } of streamChat(context)) {
+          for await (const { chunk, provider } of streamChat(context, personality.provider ? { provider: personality.provider, modelId: personality.modelId } : undefined)) {
             fullResponse += chunk;
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify({ chunk, provider })}\n\n`)

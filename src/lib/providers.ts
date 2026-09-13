@@ -74,9 +74,67 @@ function recordSuccess(name: ProviderName) {
   status[name].available = true;
 }
 
+export interface ModelOverride {
+  provider?: "groq" | "openrouter";
+  modelId?: string;
+}
+
+const UNCENSORED_MODELS = [
+  "cognitivecomputations/dolphin3.0-mistral-24b:free",
+  "nousresearch/hermes-3-llama-3.1-405b:free",
+];
+
 export async function* streamChat(
-  messages: ApiMessage[]
+  messages: ApiMessage[],
+  override?: ModelOverride
 ): AsyncGenerator<{ chunk: string; provider: ProviderName }> {
+  // If a specific model is requested (uncensored mode), use it directly
+  if (override?.modelId && openrouterClient && !isInCooldown("openrouter")) {
+    try {
+      const response = await openrouterClient.chat.completions.create({
+        model: override.modelId,
+        messages,
+        temperature: 0.7,
+        max_tokens: 2048,
+        stream: true,
+      } as any);
+      recordSuccess("openrouter");
+      const stream = response as unknown as AsyncIterable<any>;
+      for await (const chunk of stream) {
+        const content = chunk.choices?.[0]?.delta?.content;
+        if (content) yield { chunk: content, provider: "openrouter" };
+      }
+      return;
+    } catch {
+      recordFailure("openrouter");
+      // Try fallback uncensored models
+      for (const fallbackModel of UNCENSORED_MODELS) {
+        if (fallbackModel === override.modelId) continue;
+        if (!isInCooldown("openrouter") && openrouterClient) {
+          try {
+            const response = await openrouterClient.chat.completions.create({
+              model: fallbackModel,
+              messages,
+              temperature: 0.7,
+              max_tokens: 2048,
+              stream: true,
+            } as any);
+            recordSuccess("openrouter");
+            const stream = response as unknown as AsyncIterable<any>;
+            for await (const chunk of stream) {
+              const content = chunk.choices?.[0]?.delta?.content;
+              if (content) yield { chunk: content, provider: "openrouter" };
+            }
+            return;
+          } catch {
+            recordFailure("openrouter");
+          }
+        }
+      }
+    }
+  }
+
+  // Default path: Groq → OpenRouter fallback
   if (groqClient && !isInCooldown("groq")) {
     try {
       const stream = await groqClient.chat.completions.create({
