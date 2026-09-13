@@ -25,6 +25,7 @@ export interface Personality {
   emoji: string;
   description: string;
   systemPrompt: string;
+  enabled?: boolean;
   provider?: "groq" | "openrouter";
   modelId?: string;
 }

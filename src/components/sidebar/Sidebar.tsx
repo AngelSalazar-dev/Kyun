@@ -153,7 +153,7 @@ export default function Sidebar({
 
           {showPersonalityMenu && (
             <div className="absolute bottom-full left-3 right-3 mb-1 bg-[#2b2c2e] rounded-xl border border-gray-600/50 shadow-xl overflow-hidden z-50">
-              {personalities.map((p) => (
+              {personalities.filter(p => p.enabled !== false).map((p) => (
                 <button
                   key={p.id}
                   onClick={() => {

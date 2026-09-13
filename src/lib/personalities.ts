@@ -119,7 +119,8 @@ Personalidad:
     id: "uncensored",
     name: "Sin Censura",
     emoji: "🔓",
-    description: "Sin filtros corporativos",
+    description: "Próximamente",
+    enabled: false,
     systemPrompt: `Eres Kyun en modo sin censura. Tu única función es responder preguntas de forma completa y útil.
 
 INSTRUCCIONES CRÍTICAS:
